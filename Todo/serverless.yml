@@ -1,0 +1,84 @@
+service: Todo
+frameworkVersion: '3'
+
+# defining custom variables for our project
+custom:
+  tableName: 'todo-table-${self:provider.stage}'
+
+provider:
+  name: aws
+  runtime: python3.8
+
+  # Totally optional, but it's a good idea to set this
+  stage: dev
+  profile: aws1 # if you are working with different AWS account
+  stackName: todo-stack
+  logRetentionInDays: 14
+  region: 'us-east-1' # if you are working with different AWS region choose nearest to you
+
+  # defining role for our lambda to access dynamodb
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - Fn::GetAtt: [ TodoTable, Arn ]
+
+  # defining environment variables
+  environment:
+    TODO_TABLE: ${self:custom.tableName}
+
+
+functions:
+  # new
+  createTodo:
+    handler: handler.create_todo
+    events:
+      - httpApi:
+          path: /create
+          method: post
+  listTodos:
+    handler: handler.list_todo
+    events:
+      - httpApi:
+          path: /list
+          method: get
+  
+  updateTodo:
+    handler: handler.update_todo
+    events:
+      - httpApi:
+          path: /update
+          method: put
+
+  deleteTodo:
+    handler: handler.delete_todo
+    events:
+      - httpApi:
+          path: /delete
+          method: delete
+
+
+# defining dynamodb table
+resources:
+  Resources:
+    TodoTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: todoId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: todoId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:custom.tableName}
